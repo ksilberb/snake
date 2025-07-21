@@ -1,3 +1,20 @@
 CompileFlags:
-  Add: [-Wall, -Wextra, -Werror, -std=c++20, -Iinclude]
+  Add:
+    - -Wall
+    - -Wextra
+    - -Werror
+    - -std=c++20
+    - -I./include
   Compiler: clang++
+Diagnostics:
+  ClangTidy:
+    Add:
+      - modernize-*
+      - performance-*
+      - readability-*
+  UnusedIncludes: Strict
+Index:
+  Background: Build
+  StandardLibrary: Yes
+Completion:
+  AllScopes: Yes

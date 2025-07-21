@@ -1,15 +1,10 @@
+#include "window.h"
+#include "config.h"
 #include <GL/gl.h>
 #include <GLFW/glfw3.h>
-#include <iostream>
-
-namespace snake {
-    int WIDTH = 640;
-    int HEIGHT = 480;
-    float ASPECT_RATIO = (float)WIDTH / (float)HEIGHT;
-}
 
 void drawSquare(float x, float y, float l) {
-    float xOffset = l / snake::ASPECT_RATIO;
+    float xOffset = l / GameConfig::getInstance().getAspectRatio();
     glBegin(GL_QUADS);
     glVertex2f(x, y);
     glVertex2f(x + xOffset, y);
@@ -18,27 +13,19 @@ void drawSquare(float x, float y, float l) {
     glEnd();
 }
 
-// create a callback for when the window resizes
-
-int main() {
-    GLFWwindow* window;
-    if (!glfwInit()) {
-        std::cout << "Failed to initialize GLFW\n" << std::endl;
+auto main() -> int {
+    const int WIDTH = 600;
+    const int HEIGHT = 600;
+    Window game(WIDTH, HEIGHT, "Snake Game");
+    if (game.init() != GLFW_TRUE) {
         return -1;
     }
 
-    window = glfwCreateWindow(snake::WIDTH, snake::HEIGHT, "Snake", NULL, NULL);
-    if (!window) {
-        glfwTerminate();
-        return -1;
-    }
-
-    glfwMakeContextCurrent(window);
-    while (!glfwWindowShouldClose(window)) {
+    while (game.shouldClose() != GLFW_TRUE) {
         glClear(GL_COLOR_BUFFER_BIT);
         drawSquare(0.0f, 0.0f, 0.1f);
-        glfwSwapBuffers(window);
-        glfwPollEvents();
+        glfwSwapBuffers(game.get());
+        Window::pollEvents();
     }
     glfwTerminate();
     return 0;
