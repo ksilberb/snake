@@ -1,23 +1,23 @@
 #include "config.h"
 
-GameConfig& GameConfig::getInstance() {
+auto GameConfig::getInstance() -> GameConfig& {
     static GameConfig instance;
     return instance;
 }
 
-int GameConfig::getWidth() const {
+auto GameConfig::getWidth() const -> int {
     return width_;
 }
 
-int GameConfig::getHeight() const {
+auto GameConfig::getHeight() const -> int {
     return height_;
 }
 
-float GameConfig::getAspectRatio() const {
+auto GameConfig::getAspectRatio() const -> float{
     return static_cast<float>(width_) / static_cast<float>(height_);
 }
 
-void GameConfig::setDimensions(int width, int height) {
+auto GameConfig::setDimensions(int width, int height) -> void {
     width_ = width;
     height_ = height;
 }
