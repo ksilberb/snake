@@ -6,6 +6,7 @@
 #include <string>
 #include <stack>
 #include <memory>
+#include <random>
 
 class GameConfig {
 public:
@@ -49,17 +50,15 @@ public:
 
 private:
     GameConfig() = default;
-    int width_ = 800;
-    int height_ = 800;
-    int numGridCells_ = 30;
+    int width_;
+    int height_;
+    const int numGridCells_ = 30;
     std::vector<AspectRatioCallback> aspectRatioCallbacks_;
 };
 
 class Window {
 public:
-    Window(int width, int height, std::string title) : title_(std::move(title)) {
-        GameConfig::getInstance().setDimensions(width, height);
-    }
+    Window(std::string title) : title_(std::move(title)) {}
 
     ~Window() {
         if (window_ != nullptr) {
@@ -121,8 +120,9 @@ private:
 
 class Cell {
 public:
+    const float windowLength = 2.0F;
     Cell(float xPos, float yPos) : x_(xPos), y_(yPos) {
-        Cell::length_ = 2.0F / GameConfig::getInstance().getNumGridCells();
+        Cell::length_ = windowLength / GameConfig::getInstance().getNumGridCells();
         static bool callbackRegistered = false;
         if (!callbackRegistered) {
             GameConfig::getInstance().registerAspectRatioCallback([](float newAspectRatio) {
@@ -144,6 +144,17 @@ public:
         glEnd();
     }
 
+    auto update(float xPos, float yPos) -> void {
+        x_ = xPos;
+        y_ = yPos;
+    }
+
+    auto getCellPos() -> std::vector<float> {
+        return {x_, y_};
+    }
+
+    static inline float length_ = 0.0F;
+
 private:
     static auto updateOffset(float aspectRatio) -> void {
         offset_ = length_ / aspectRatio;
@@ -151,14 +162,51 @@ private:
 
     float x_;
     float y_;
-    static inline float length_ = 0.0F;
     static inline float offset_ = 0.0F;
 };
 
 class Snake {
 public:
+    enum class Direction : uint8_t {NORTH, EAST, SOUTH, WEST};
+
     Snake(float xInit, float yInit) : headPos_{xInit, yInit} {
         body_.emplace_back(headPos_[0], headPos_[1]);
+        timeSinceLastMove = 0.0F;
+        currentDirection_ = Direction::EAST;
+    }
+
+    ~Snake() = default;
+
+    static auto turnRight(Direction dir) -> Direction {
+        switch (dir) {
+        case Direction::NORTH : return Direction::EAST;
+        case Direction::EAST : return Direction::SOUTH;
+        case Direction::SOUTH : return Direction::WEST;
+        case Direction::WEST : return Direction::NORTH;
+        }
+        return Direction::EAST;
+    }
+
+    static auto turnLeft(Direction dir) -> Direction {
+        switch (dir) {
+        case Direction::NORTH : return Direction::WEST;
+        case Direction::WEST : return Direction::SOUTH;
+        case Direction::SOUTH : return Direction::EAST;
+        case Direction::EAST : return Direction::NORTH;
+        }
+        return Direction::EAST;
+    }
+
+    auto changeCurrentDirection(Direction dir) -> void {
+        currentDirection_  = dir;
+    }
+
+    auto getCurrentDirection() -> Direction {
+        return currentDirection_;
+    }
+
+    auto getHeadPos() -> std::vector<float> {
+        return headPos_;
     }
 
     auto draw() -> void {
@@ -168,14 +216,33 @@ public:
     }
 
     auto update(float deltaTime) -> void {
-        // need to define an accumulator that will add up the delta time up to a threshold.
-        // move the snake head 1 block over in cardinal directions every 1.0 seconds.
+        timeSinceLastMove += deltaTime;
+        // updating the direction of the snake head
+        if (timeSinceLastMove >= speed_) {
+            std::array<float, 2> direction = Snake::getDirection(currentDirection_);
+            headPos_[0] += direction[0] * Cell::length_;
+            headPos_[1] += direction[1] * Cell::length_;
+            timeSinceLastMove = 0.0F;
+            body_[0].update(headPos_[0], headPos_[1]);
+        }
     }
 
 private:
+    static auto getDirection(Direction dir) -> std::array<float, 2> {
+        switch (dir) {
+        case Direction::NORTH : return {0.0F, 1.0F};
+        case Direction::EAST : return {1.0F, 0.0F};
+        case Direction::SOUTH : return {0.0F, -1.0F};
+        case Direction::WEST : return {-1.0F, 0.0F};
+        }
+        return {1.0F, 0.0F};
+    }
+
     std::vector<float> headPos_;
     std::vector<Cell> body_;
-    float speed_ = 0.0F;
+    float speed_ = 1.0F;
+    float timeSinceLastMove;
+    Direction currentDirection_;
 };
 
 class GameState {
@@ -258,45 +325,60 @@ private:
 
 class Playing : public GameState {
 public:
-    auto enter() -> void override {
-        // initialize game
-    }
-
-    auto exit() -> void override {
-        // clean up
+    Playing() : food_(0.0F, 0.0F) {
     }
 
     auto handleInput(GLFWwindow* window, [[maybe_unused]] float deltaTime) -> void override {
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-            // MOVE RIGHT
+        keystates[0] = (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS);
+        keystates[1] = (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS);
+        keystates[2] = (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS);
+        if (keystates[0] && !dAction_) {
+            std::cout << "D pressed \n";
+            snake_.changeCurrentDirection(Snake::turnRight(snake_.getCurrentDirection()));
         }
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-            // MOVE LEFT
+        dAction_ = keystates[0];
+        if (keystates[1] && !aAction_) {
+            std::cout << "A pressed \n";
+            snake_.changeCurrentDirection(Snake::turnLeft(snake_.getCurrentDirection()));
         }
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            // EXIT GAME
+        aAction_ = keystates[1];
+        if (keystates[2] && !escapeAction_) {
+            std::cout << "Escape pressed \n";
         }
+        escapeAction_ = keystates[2];
     }
 
     auto update([[maybe_unused]] float deltaTime) -> void override {
-        snake.update(deltaTime);
-        // check collisions
-        // spawn food
+        snake_.update(deltaTime);
+        if (foodEaten(snake_.getHeadPos(), food_.getCellPos())) {
+            std::cout << "food eaten!\n";
+        }
     }
 
     auto render() -> void override {
         glClear(GL_COLOR_BUFFER_BIT);
-        snake.draw();
+        snake_.draw();
+        food_.draw();
     }
 
 private:
-    Snake snake = Snake(-1.0F, 1.0F);
+    static auto foodEaten(std::vector<float> headPosition, std::vector<float> cellPosition) -> bool {
+        return cellPosition[0] == headPosition[0] && cellPosition[1] == headPosition[1];
+    }
+
+    Snake snake_ = Snake(-1.0F, 1.0F);
+    Cell food_;
+    std::vector<bool> keystates = {false, false, false};
+    bool dAction_ = false;
+    bool aAction_ = false;
+    bool escapeAction_ = false;
 };
 
 auto main() -> int {
-    const int WIDTH = 600;
-    const int HEIGHT = 600;
-    Window win(WIDTH, HEIGHT, "Snake Game");
+    const int width = 800;
+    const int height = 800;
+    GameConfig::getInstance().setDimensions(width, height);
+    Window win("Snake Game");
 
     if (win.init() != GLFW_TRUE) {
         return -1;
